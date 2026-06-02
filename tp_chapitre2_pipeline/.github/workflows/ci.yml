@@ -1,0 +1,53 @@
+name: CI + Dagster Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  run-dagster-pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Récupérer le code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Setup Python
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # 3. Installer dépendances
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas duckdb dbt-core dbt-duckdb dagster dagster-webserver
+
+      # 4. Vérifier syntaxe Python
+      - name: Syntax check
+        run: |
+          python -m py_compile pipeline/ingest.py pipeline/validate.py pipeline/orchestrate.py
+
+      # 5. Run ingestion
+      - name: Run ingestion
+        run: python pipeline/ingest.py
+
+      # 6. Run validation
+      - name: Run validation
+        run: python pipeline/validate.py
+
+      # 7. Run dbt transformation
+      - name: Run dbt
+        run: |
+          cd dbt_pipeline
+          dbt run --profiles-dir .
+          dbt test --profiles-dir .
+
+      # 8. Run Dagster orchestration (simulation CLI)
+      - name: Run Dagster pipeline
+        run: |
+          python pipeline/orchestrate.py
